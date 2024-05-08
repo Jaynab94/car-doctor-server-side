@@ -1,15 +1,21 @@
 const express = require('express');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
+const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const app = express();
 const port = process.env.PORT || 5000;
 
 
 //middleware
 
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5174'],
+    credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 
 
@@ -44,6 +50,21 @@ async function run() {
         const serviceCollection = client.db("carDoctor").collection('services');
         const bookingCollection = client.db("carDoctor").collection('bookings');
 
+        //jwt
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+
+            console.log(user);
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1hr" });
+            res
+                .cookie('token', token, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'strict'
+
+                })
+                .send({ success: true });
+        })
 
 
 
@@ -79,14 +100,19 @@ async function run() {
         //Bookings route
         app.post('/bookings', async (req, res) => {
             const booking = req.body;
+           
             console.log(booking);
             const result = await bookingCollection.insertOne(booking);
             res.send(result);
         })
 
         app.get('/bookings', async (req, res) => {
+            
 
             console.log(req.query.email);
+
+            console.log('token::', req.cookies?.token);
+           
 
             let query = {};
             if (req.query?.email) {
@@ -97,6 +123,8 @@ async function run() {
             res.send(result);
         })
 
+
+
         app.delete('/bookings/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
@@ -104,9 +132,21 @@ async function run() {
             res.send(result);
         })
 
-        app.put('/bookings/:id', async (req, res) => {
+        app.patch('/bookings/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
             const updateBooking = req.body;
-            
+            console.log(updateBooking);
+            const updatedDoc = {
+                $set: {
+                    status: updateBooking.status
+                },
+            };
+            const result = await bookingCollection.updateOne(query, updatedDoc);
+
+            res.send(result);
+
+
 
 
         })
