@@ -11,9 +11,10 @@ const port = process.env.PORT || 5000;
 //middleware
 
 app.use(cors({
-    origin: ['http://localhost:5174'],
+    origin: ['http://localhost:5174', 'http://localhost:5173'],
     credentials: true
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -43,6 +44,39 @@ const client = new MongoClient(uri, {
     }
 });
 
+//our middleware
+
+const logger = (req, res, next) => {
+    console.log('called::::', req.host, req.originalUrl);
+    next();
+
+}
+
+const verifyToken = (req, res, next) => {
+    const token = req.cookies?.token;
+    console.log('value of token in middle ware', token);
+
+    if (!token) {
+        return res.status(401).send({ message: 'unauthorized' });
+    }
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decode) => {
+        // err
+        if (err) {
+            console.log(err);
+            return res.status(401).send({ message: 'unauthorized' });
+        }
+
+        //decode
+
+        console.log('decode', decode);
+        req.user = decode;
+        next();
+
+    })
+
+
+}
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
@@ -51,7 +85,7 @@ async function run() {
         const bookingCollection = client.db("carDoctor").collection('bookings');
 
         //jwt
-        app.post('/jwt', async (req, res) => {
+        app.post('/jwt', logger, async (req, res) => {
             const user = req.body;
 
             console.log(user);
@@ -70,7 +104,7 @@ async function run() {
 
 
         // services route
-        app.get('/add', async (req, res) => {
+        app.get('/add', logger, async (req, res) => {
             const cursor = serviceCollection.find();
             const result = await cursor.toArray();
             res.send(result);
@@ -100,19 +134,21 @@ async function run() {
         //Bookings route
         app.post('/bookings', async (req, res) => {
             const booking = req.body;
-           
+
             console.log(booking);
             const result = await bookingCollection.insertOne(booking);
             res.send(result);
         })
 
-        app.get('/bookings', async (req, res) => {
-            
-
+        app.get('/bookings', logger, verifyToken, async (req, res) => {
             console.log(req.query.email);
+            console.log('from valid user', req.user)
+            if (req.query.email !== req.user.email) {
+                return res.status(403).send({ message: 'forbidden' });
+            }
 
-            console.log('token::', req.cookies?.token);
-           
+            // console.log('token::', req.cookies?.token);
+
 
             let query = {};
             if (req.query?.email) {
