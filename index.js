@@ -46,36 +46,36 @@ const client = new MongoClient(uri, {
 
 //our middleware
 
-const logger = (req, res, next) => {
-    console.log('called::::', req.host, req.originalUrl);
-    next();
+// const logger = (req, res, next) => {
+//     console.log('called::::', req.host, req.originalUrl);
+//     next();
 
-}
+// }
 
-const verifyToken = (req, res, next) => {
-    const token = req.cookies?.token;
-    console.log('value of token in middle ware', token);
+// const verifyToken = (req, res, next) => {
+//     const token = req.cookies?.token;
+//     console.log('value of token in middle ware', token);
 
-    if (!token) {
-        return res.status(401).send({ message: 'unauthorized' });
-    }
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decode) => {
-        // err
-        if (err) {
-            console.log(err);
-            return res.status(401).send({ message: 'unauthorized' });
-        }
+//     if (!token) {
+//         return res.status(401).send({ message: 'unauthorized' });
+//     }
+//     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decode) => {
+//         // err
+//         if (err) {
+//             console.log(err);
+//             return res.status(401).send({ message: 'unauthorized' });
+//         }
 
-        //decode
+//         //decode
 
-        console.log('decode', decode);
-        req.user = decode;
-        next();
+//         console.log('decode', decode);
+//         req.user = decode;
+//         next();
 
-    })
+//     })
 
 
-}
+// }
 
 async function run() {
     try {
@@ -84,27 +84,30 @@ async function run() {
         const serviceCollection = client.db("carDoctor").collection('services');
         const bookingCollection = client.db("carDoctor").collection('bookings');
 
-        //jwt
-        app.post('/jwt', logger, async (req, res) => {
+        jwt
+        app.post('/jwt', async (req, res) => {
             const user = req.body;
+            console.log('user for token: ', user)
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1hr' })
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict'
+            }).send({ success: true })
 
-            console.log(user);
-            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1hr" });
-            res
-                .cookie('token', token, {
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: 'strict'
+        })
 
-                })
-                .send({ success: true });
+        app.post('/logout', async (req, res) => {
+            const user = req.body;
+            console.log('logout', user)
+            res.clearCookie('token', { maxAge: 0 }).send({ success: true });
         })
 
 
 
 
         // services route
-        app.get('/add', logger, async (req, res) => {
+        app.get('/add',  async (req, res) => {
             const cursor = serviceCollection.find();
             const result = await cursor.toArray();
             res.send(result);
@@ -140,12 +143,12 @@ async function run() {
             res.send(result);
         })
 
-        app.get('/bookings', logger, verifyToken, async (req, res) => {
+        app.get('/bookings', async (req, res) => {
             console.log(req.query.email);
             console.log('from valid user', req.user)
-            if (req.query.email !== req.user.email) {
-                return res.status(403).send({ message: 'forbidden' });
-            }
+            // if (req.query.email !== req.user?.email) {
+            //     return res.status(403).send({ message: 'problem here' });
+            // }
 
             // console.log('token::', req.cookies?.token);
 
